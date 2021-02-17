@@ -170,6 +170,9 @@ public class GeyserSession implements CommandSender {
     @Setter
     private boolean sprinting;
 
+    /**
+     * Not updated if cache chunks is enabled.
+     */
     @Setter
     private boolean jumping;
 
@@ -370,7 +373,9 @@ public class GeyserSession implements CommandSender {
 
         this.inventoryCache.getInventories().put(0, inventory);
 
-        connector.getPlayers().forEach(player -> this.emotes.addAll(player.getEmotes()));
+        // Make a copy to prevent ConcurrentModificationException
+        final List<GeyserSession> tmpPlayers = new ArrayList<>(connector.getPlayers());
+        tmpPlayers.forEach(player -> this.emotes.addAll(player.getEmotes()));
 
         bedrockServerSession.addDisconnectHandler(disconnectReason -> {
             connector.getLogger().info(LanguageUtils.getLocaleStringLog("geyser.network.disconnect", bedrockServerSession.getAddress().getAddress(), disconnectReason));
@@ -565,8 +570,10 @@ public class GeyserSession implements CommandSender {
             downstream.getSession().setFlag(BuiltinFlags.ENABLE_CLIENT_PROXY_PROTOCOL, true);
             downstream.getSession().setFlag(BuiltinFlags.CLIENT_PROXIED_ADDRESS, upstream.getAddress());
         }
-        // Let Geyser handle sending the keep alive
-        downstream.getSession().setFlag(MinecraftConstants.AUTOMATIC_KEEP_ALIVE_MANAGEMENT, false);
+        if (connector.getConfig().isForwardPlayerPing()) {
+            // Let Geyser handle sending the keep alive
+            downstream.getSession().setFlag(MinecraftConstants.AUTOMATIC_KEEP_ALIVE_MANAGEMENT, false);
+        }
         downstream.getSession().addListener(new SessionAdapter() {
             @Override
             public void packetSending(PacketSendingEvent event) {
